@@ -23,6 +23,7 @@ namespace Castle.Windsor.Extensions.DependencyInjection
 	using System;
 	using System.Collections.Concurrent;
 	using System.Collections.Generic;
+	using System.Linq;
 
 	public abstract class WindsorServiceProviderFactoryBase : IServiceProviderFactory<IWindsorContainer>, IDisposable
 	{
@@ -97,13 +98,21 @@ namespace Castle.Windsor.Extensions.DependencyInjection
 				return rootContainer;
 			}
 
-			RegisterContainer(rootContainer);
-			RegisterProviders(rootContainer);
-			RegisterFactories(rootContainer);
+			var token = (rootContainer.Kernel as IKernelInternal)?.OptimizeDependencyResolution();
+			try
+			{
+				RegisterContainer(rootContainer);
+				RegisterProviders(rootContainer);
+				RegisterFactories(rootContainer);
 
-			AddSubResolvers();
+				AddSubResolvers();
 
-			RegisterServiceCollection(serviceCollection);
+				RegisterServiceCollection(serviceCollection);
+			}
+			finally
+			{
+				token?.Dispose();
+			}
 
 			return rootContainer;
 		}
@@ -146,10 +155,11 @@ namespace Castle.Windsor.Extensions.DependencyInjection
 
 		protected virtual void RegisterServiceCollection(IServiceCollection serviceCollection)
 		{
-			foreach (var service in serviceCollection)
-			{
-				rootContainer.Register(service.CreateWindsorRegistration(rootContainer));
-			}
+			var registrations = serviceCollection
+				.Select(service => service.CreateWindsorRegistration(rootContainer))
+				.ToArray();
+
+			rootContainer.Register(registrations);
 		}
 
 		protected virtual void AddSubResolvers()
