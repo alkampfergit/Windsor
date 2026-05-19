@@ -52,6 +52,12 @@ namespace Castle.Windsor.Extensions.DependencyInjection
 
 		public virtual IServiceProvider CreateServiceProvider(IWindsorContainer container)
 		{
+			if (container == null)
+			{
+				throw new ArgumentNullException(nameof(container));
+			}
+
+			EnsureInfrastructureRegistered(container);
 			return container.Resolve<IServiceProvider>();
 		}
 
@@ -143,14 +149,24 @@ namespace Castle.Windsor.Extensions.DependencyInjection
 
 		protected virtual void RegisterFactories(IWindsorContainer container)
 		{
+			RegisterScopeFactory(container);
+			RegisterServiceProviderFactory(container);
+		}
+
+		protected virtual void RegisterScopeFactory(IWindsorContainer container)
+		{
 			container.Register(Component
-					.For<IServiceScopeFactory>()
-					.ImplementedBy<WindsorScopeFactory>()
-					.LifestyleSingleton(),
-				Component
-					.For<IServiceProviderFactory<IWindsorContainer>>()
-					.Instance(this)
-					.LifestyleSingleton());
+				.For<IServiceScopeFactory>()
+				.ImplementedBy<WindsorScopeFactory>()
+				.LifestyleSingleton());
+		}
+
+		protected virtual void RegisterServiceProviderFactory(IWindsorContainer container)
+		{
+			container.Register(Component
+				.For<IServiceProviderFactory<IWindsorContainer>>()
+				.Instance(this)
+				.LifestyleSingleton());
 		}
 
 		protected virtual void RegisterServiceCollection(IServiceCollection serviceCollection)
@@ -167,6 +183,29 @@ namespace Castle.Windsor.Extensions.DependencyInjection
 			rootContainer.Kernel.Resolver.AddSubResolver(new RegisteredCollectionResolver(rootContainer.Kernel));
 			rootContainer.Kernel.Resolver.AddSubResolver(new OptionsSubResolver(rootContainer.Kernel));
 			rootContainer.Kernel.Resolver.AddSubResolver(new LoggerDependencyResolver(rootContainer.Kernel));
+		}
+
+		private void EnsureInfrastructureRegistered(IWindsorContainer container)
+		{
+			if (!container.Kernel.GetHandlers(typeof(IWindsorContainer)).Any())
+			{
+				RegisterContainer(container);
+			}
+
+			if (!container.Kernel.GetHandlers(typeof(IServiceProvider)).Any())
+			{
+				RegisterProviders(container);
+			}
+
+			if (!container.Kernel.GetHandlers(typeof(IServiceScopeFactory)).Any())
+			{
+				RegisterScopeFactory(container);
+			}
+
+			if (!container.Kernel.GetHandlers(typeof(IServiceProviderFactory<IWindsorContainer>)).Any())
+			{
+				RegisterServiceProviderFactory(container);
+			}
 		}
 
 		protected virtual void Dispose(bool disposing)

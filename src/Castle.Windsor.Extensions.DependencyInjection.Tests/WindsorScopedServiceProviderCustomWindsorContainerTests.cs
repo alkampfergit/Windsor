@@ -41,6 +41,26 @@ namespace Castle.Windsor.Extensions.DependencyInjection.Tests
 			return _factory.CreateServiceProvider(container);
 		}
 
+		[Fact]
+		public void CreateServiceProvider_registers_provider_infrastructure_when_builder_was_not_called()
+		{
+			using (var container = new WindsorContainer())
+			using (var factory = new WindsorServiceProviderFactory(container))
+			{
+				var provider = factory.CreateServiceProvider(container);
+				try
+				{
+					Assert.NotNull(provider);
+					Assert.Same(container, provider.GetRequiredService<IWindsorContainer>());
+					Assert.NotNull(provider.GetRequiredService<IServiceScopeFactory>());
+				}
+				finally
+				{
+					(provider as IDisposable)?.Dispose();
+				}
+			}
+		}
+
 		protected virtual void Dispose(bool disposing)
 		{
 			if (!_disposedValue)
