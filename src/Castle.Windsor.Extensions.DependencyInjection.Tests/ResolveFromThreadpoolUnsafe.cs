@@ -296,6 +296,42 @@ namespace Castle.Windsor.Extensions.DependencyInjection.Tests
 			container.Dispose();
 		}
 
+		/// <summary>
+		/// A Microsoft DI singleton registered with a factory (e.g. Orleans IGrainFactory) resolved for the first time
+		/// from a thread with no AsyncLocal scope: the factory needs IServiceProvider, that must come from the root scope.
+		/// </summary>
+		[Fact]
+		public async Task Can_Resolve_Factory_Singleton_First_Time_From_WindsorContainer_NoScopeAvailable()
+		{
+			var serviceCollection = new ServiceCollection();
+			serviceCollection.AddSingleton<IUserService>(_ => new UserService());
+			var container = new WindsorContainer();
+			using var f = new WindsorServiceProviderFactory(container);
+			f.CreateBuilder(serviceCollection);
+			IServiceProvider sp = f.CreateServiceProvider(container);
+
+			TaskCompletionSource<IUserService> tcs = new TaskCompletionSource<IUserService>();
+
+			ThreadPool.UnsafeQueueUserWorkItem(state =>
+			{
+				try
+				{
+					tcs.SetResult(container.Resolve<IUserService>());
+				}
+				catch (Exception ex)
+				{
+					tcs.SetException(ex);
+				}
+			}, null);
+
+			var result = await tcs.Task;
+			Assert.NotNull(result);
+			Assert.Same(result, sp.GetService<IUserService>());
+
+			(sp as IDisposable)?.Dispose();
+			container.Dispose();
+		}
+
 		#endregion
 
 		#region Scoped

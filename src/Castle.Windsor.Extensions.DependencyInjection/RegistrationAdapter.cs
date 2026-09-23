@@ -16,6 +16,7 @@ namespace Castle.Windsor.Extensions.DependencyInjection
 {
 	using Castle.MicroKernel.Registration;
 	using Castle.Windsor.Extensions.DependencyInjection.Extensions;
+	using Castle.Windsor.Extensions.DependencyInjection.Scope;
 	using Microsoft.Extensions.DependencyInjection;
 	using System;
 
@@ -216,6 +217,11 @@ if (service.ImplementationType != null)
 		{
 			return registration.UsingFactoryMethod((kernel) =>
 			{
+				// Singleton factories can run where the AsyncLocal scope did not flow (e.g. ThreadPool.UnsafeQueueUserWorkItem,
+				// used by Orleans): fall back to the root scope, as NetStatic does, instead of failing to resolve IServiceProvider.
+				using var forcedScope = service.Lifetime == ServiceLifetime.Singleton && ExtensionContainerScopeCache.Current == null
+					? new ForcedScope(WindsorServiceProviderFactoryBase.GetRootScopeForKernel(kernel))
+					: null;
 				var serviceProvider = kernel.Resolve<System.IServiceProvider>();
 #if NET8_0_OR_GREATER
 				if (service.IsKeyedService)
